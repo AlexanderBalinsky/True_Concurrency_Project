@@ -1,4 +1,5 @@
 #include "PicProcess.h"
+#include <pthread.h>
 
   #define NO_RGB_COMPONENTS 3
   #define BLUR_REGION_SIZE 9
@@ -164,19 +165,68 @@
     overwrite_picture(pic, &tmp);
   }
   
+  static void *single_pixel_worker(void *args) {
+    struct p_work_args *pargs = (struct p_work_args*) args;
+
+    struct pixel rgb;
+
+    int sum_red = 0;
+    int sum_green = 0;
+    int sum_blue = 0;
+
+    for(int n = -1; n <= 1; n++){
+      for(int m = -1; m <= 1; m++){
+        rgb = get_pixel(pargs->orig_pic, pargs->x_coord+n, pargs->y_coord+m);
+        sum_red += rgb.red;
+        sum_green += rgb.green;
+        sum_blue += rgb.blue;
+        }
+      }
+    rgb.red = sum_red / BLUR_REGION_SIZE;
+    rgb.green = sum_green / BLUR_REGION_SIZE;
+    rgb.blue = sum_blue / BLUR_REGION_SIZE;
+
+    set_pixel(pargs->new_pic, pargs->x_coord, pargs->y_coord, &rgb);
+
+  }
+  
+  static void *bound_pixel_worker(void *args) {
+    struct p_work_args *pargs = (struct p_work_args*) args;
+
+    struct pixel rgb = 
+      get_pixel(pargs->orig_pic, pargs->x_coord, pargs->y_coord);
+    set_pixel(pargs->new_pic, pargs->x_coord, pargs->y_coord, &rgb);
+  }
+
   void parallel_blur_picture(struct picture *pic){
     // make new temporary picture to work in
     struct picture tmp;
     init_picture_from_size(&tmp, pic->width, pic->height);
     
     // iterate over each pixel in the picture
+    // TODO: refactor into boundary loops and inside for loops
+    // to avoid having an if statement for boundary on each worker call
     for(int i = 0 ; i < tmp.width; i++){
-      for(int j = 0 ; j < tmp.height; j++){  
-        
-        //TODO: set-up work and dispatch to a pthread
-        
+      for(int j = 0 ; j < tmp.height; j++){ 
+        pthread_t pixel_worker;
+        struct p_work_args pixel_params;
+        pixel_params.orig_pic = pic;
+        pixel_params.new_pic = &tmp;
+        pixel_params.x_coord = i;
+        pixel_params.y_coord = j;
+
+        if(i == 0 || j == 0 || i == tmp.width - 1 || j == tmp.height - 1) {
+          pthread_create(&pixel_worker, NULL, 
+                        bound_pixel_worker, 
+                        &pixel_params);
+        } else {
+          pthread_create(&pixel_worker, NULL, 
+                        single_pixel_worker, 
+                        &pixel_params);
+        }
+        pthread_join(pixel_worker, NULL);
       }
-    }    
+    }
     
     // clean-up the old picture and replace with new picture
     clear_picture(pic);

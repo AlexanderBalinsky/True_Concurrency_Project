@@ -12,5 +12,12 @@
   void blur_picture(struct picture *pic);
   void parallel_blur_picture(struct picture *pic);
 
+  struct p_work_args {
+    struct picture *orig_pic;
+    struct picture *new_pic;
+    int x_coord;
+    int y_coord;
+  };
+
 #endif
 
