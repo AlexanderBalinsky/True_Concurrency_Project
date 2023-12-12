@@ -164,8 +164,14 @@
     clear_picture(pic);
     overwrite_picture(pic, &tmp);
   }
+
+  static void thread_cleanup_handler(void* args)
+  {
+      free(args);
+  }
   
   static void *single_pixel_worker(void *args) {
+    pthread_cleanup_push(thread_cleanup_handler, args);
     struct p_work_args *pargs = (struct p_work_args*) args;
 
     struct pixel rgb;
@@ -188,14 +194,18 @@
 
     set_pixel(pargs->new_pic, pargs->x_coord, pargs->y_coord, &rgb);
 
+    pthread_cleanup_pop(1);
   }
   
   static void *bound_pixel_worker(void *args) {
+    pthread_cleanup_push(thread_cleanup_handler, args);
     struct p_work_args *pargs = (struct p_work_args*) args;
 
     struct pixel rgb = 
       get_pixel(pargs->orig_pic, pargs->x_coord, pargs->y_coord);
     set_pixel(pargs->new_pic, pargs->x_coord, pargs->y_coord, &rgb);
+
+    pthread_cleanup_pop(1);
   }
 
   void parallel_blur_picture(struct picture *pic){
@@ -209,20 +219,21 @@
     for(int i = 0 ; i < tmp.width; i++){
       for(int j = 0 ; j < tmp.height; j++){ 
         pthread_t pixel_worker;
-        struct p_work_args pixel_params;
-        pixel_params.orig_pic = pic;
-        pixel_params.new_pic = &tmp;
-        pixel_params.x_coord = i;
-        pixel_params.y_coord = j;
+        void * param_space = malloc(sizeof(struct p_work_args));
+        struct p_work_args *pixel_params = param_space;
+        pixel_params->orig_pic = pic;
+        pixel_params->new_pic = &tmp;
+        pixel_params->x_coord = i;
+        pixel_params->y_coord = j;
 
         if(i == 0 || j == 0 || i == tmp.width - 1 || j == tmp.height - 1) {
           pthread_create(&pixel_worker, NULL, 
                         bound_pixel_worker, 
-                        &pixel_params);
+                        pixel_params);
         } else {
           pthread_create(&pixel_worker, NULL, 
                         single_pixel_worker, 
-                        &pixel_params);
+                        pixel_params);
         }
         pthread_join(pixel_worker, NULL);
       }
