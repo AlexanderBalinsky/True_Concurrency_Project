@@ -22,6 +22,10 @@ bool enqueue(struct thread_queue* queue, pthread_t* thread,
 // Assumes queue is not Null
 pthread_t* dequeue(struct thread_queue* queue) {
 
+    if (isNull(queue)) {
+        return NULL;
+    }
+
     struct thread_node *node_to_rm = queue->tail;
     pthread_t* thread_return = node_to_rm->thread;
 
@@ -41,4 +45,9 @@ pthread_t* dequeue(struct thread_queue* queue) {
 
 bool isNull(struct thread_queue* queue) {
     return (queue->head == NULL);
+}
+
+void init_queue(struct thread_queue* queue) {
+    queue->head = NULL;
+    queue->tail = NULL;
 }

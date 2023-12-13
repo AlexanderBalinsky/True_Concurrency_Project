@@ -26,4 +26,6 @@ pthread_t* dequeue(struct thread_queue*);
 
 bool isNull(struct thread_queue*);
 
+void init_queue(struct thread_queue*);
+
 #endif

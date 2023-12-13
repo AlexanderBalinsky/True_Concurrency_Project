@@ -3,6 +3,8 @@
 
   #define NO_RGB_COMPONENTS 3
   #define BLUR_REGION_SIZE 9
+  #define PTHREAD_CREATE_FAIL_CODE 1
+  #define PTHREAD_CREATE_SUCCESS_CODE 0
 
 
   void invert_picture(struct picture *pic){
@@ -210,12 +212,14 @@
 
   static void thread_join_then_return(struct thread_queue* queue) {
     pthread_t *thread_to_join;
-
-    //TODO: PUT THIS INTO QUEUE IMPLEMENTATION
-    if (!(isNull(queue))) {
-      thread_to_join = dequeue(queue);
-    }
+    thread_to_join = dequeue(queue);
     pthread_join(*thread_to_join, NULL);
+  }
+
+  static void clear_threads(struct thread_queue* queue) {
+    while (!isNull(queue)) {
+      thread_join_then_return(queue);
+    }
   }
 
   static void *malloc_clear_if_need(size_t size_to_malloc, 
@@ -228,14 +232,26 @@
     return new_space;
   }
 
+  static void make_pixel_thread_loop(pthread_t* thread, 
+                                void*(*worker_func)(void*), 
+                                struct p_work_args *params,
+                                struct thread_queue* queue) {
+    int pthread_create_code = PTHREAD_CREATE_FAIL_CODE;
+    while (pthread_create_code != PTHREAD_CREATE_SUCCESS_CODE) {
+      pthread_create_code = pthread_create(thread, NULL, 
+                    worker_func, 
+                    params);
+      thread_join_then_return(queue);
+    }
+  }
+
   void parallel_blur_picture(struct picture *pic){
     // make new temporary picture to work in
     struct picture tmp;
     init_picture_from_size(&tmp, pic->width, pic->height);
 
     struct thread_queue thread_store;
-    thread_store.head = NULL;
-    thread_store.tail = NULL;
+    init_queue(&thread_store);
     
     // iterate over each pixel in the picture
     // TODO: refactor into boundary loops and inside for loops
@@ -251,6 +267,8 @@
         pixel_params->x_coord = i;
         pixel_params->y_coord = j;
 
+        fprintf(stderr, "Reached here");
+
         void *(*worker_func)(void *);
         if(i == 0 || j == 0 || i == tmp.width - 1 || j == tmp.height - 1) {
             worker_func = &bound_pixel_worker;
@@ -258,13 +276,11 @@
             worker_func = &single_pixel_worker;
           }
 
-        int pthread_create_check = 1;
-        while (pthread_create_check != 0) {
-          pthread_create_check = pthread_create(&pixel_worker, NULL, 
-                        worker_func, 
-                        pixel_params);
-          thread_join_then_return(&thread_store);
-        }
+        fprintf(stderr, "Reached here 2");
+
+        make_pixel_thread_loop(&pixel_worker, worker_func, 
+                              pixel_params, &thread_store);
+
         fprintf(stderr, "\nBegan a new thread at: x:%d y:%d\n", i, j);
           
         struct thread_node *new_node = 
@@ -273,9 +289,8 @@
       }
     }
 
-    while (!isNull(&thread_store)) {
-      thread_join_then_return(&thread_store);
-    }
+    clear_threads(&thread_store);
+    
     // clean-up the old picture and replace with new picture
     clear_picture(pic);
     overwrite_picture(pic, &tmp);
