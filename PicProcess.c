@@ -208,8 +208,24 @@
     pthread_cleanup_pop(1);
   }
 
-  void thread_join_then_return(struct thread_queue* queue) {
-    pthread_t *thread_to_join = dequeue(queue);
+  static void *try_malloc_fail_join(size_t size_to_malloc, 
+                                    struct thread_queue* queue) {
+    void *new_space = malloc(size_to_malloc);
+    while (new_space == NULL) {
+      thread_join_then_return(queue);
+      void *new_space = malloc(size_to_malloc);
+    }
+    return new_space;
+  }
+
+  static void *malloc_clear_if_need(struct thread_queue* queue) {
+    pthread_t *thread_to_join;
+
+    //TODO: PUT THIS INTO QUEUE IMPLEMENTATION
+    if (!(isNull(queue))) {
+      pthread_t *thread_to_join = dequeue(queue);
+    }
+
     pthread_join(*thread_to_join, NULL);
   }
 
@@ -228,18 +244,8 @@
     for(int i = 0 ; i < tmp.width; i++){
       for(int j = 0 ; j < tmp.height; j++){ 
         pthread_t pixel_worker;
-        void * param_space = NULL;
-        while (true) {
-          param_space = malloc(sizeof(struct p_work_args));
-          if (param_space == NULL) {
-            if (!(isNull(&thread_store))) {
-              thread_join_then_return(&thread_store);
-            } 
-          } else {
-            break;
-          }
-        }
-        struct p_work_args *pixel_params = param_space;
+
+        struct p_work_args *pixel_params  = malloc_clear_if_need(sizeof(struct p_work_args));
         pixel_params->orig_pic = pic;
         pixel_params->new_pic = &tmp;
         pixel_params->x_coord = i;
@@ -261,17 +267,7 @@
           } 
         }
           
-        struct thread_node *new_node = NULL;
-        while (true) {
-          new_node = malloc(sizeof(struct thread_node));
-          if (new_node == NULL) {
-            if (!(isNull(&thread_store))) {
-              thread_join_then_return(&thread_store);
-            } 
-          } else {
-            break;
-          }
-        }
+        struct thread_node *new_node = malloc_clear_if_need(sizeof(struct thread_node));
         enqueue(&thread_store, &pixel_worker, new_node);
       }
     }
