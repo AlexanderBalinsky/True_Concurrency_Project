@@ -208,14 +208,13 @@
     pthread_cleanup_pop(1);
   }
 
-  static void *thread_join_then_return(struct thread_queue* queue) {
+  static void thread_join_then_return(struct thread_queue* queue) {
     pthread_t *thread_to_join;
 
     //TODO: PUT THIS INTO QUEUE IMPLEMENTATION
     if (!(isNull(queue))) {
-      pthread_t *thread_to_join = dequeue(queue);
+      thread_to_join = dequeue(queue);
     }
-
     pthread_join(*thread_to_join, NULL);
   }
 
@@ -252,21 +251,21 @@
         pixel_params->x_coord = i;
         pixel_params->y_coord = j;
 
+        void *(*worker_func)(void *);
+        if(i == 0 || j == 0 || i == tmp.width - 1 || j == tmp.height - 1) {
+            worker_func = &bound_pixel_worker;
+          } else {
+            worker_func = &single_pixel_worker;
+          }
+
         int pthread_create_check = 1;
         while (pthread_create_check != 0) {
-          if(i == 0 || j == 0 || i == tmp.width - 1 || j == tmp.height - 1) {
-            pthread_create_check = pthread_create(&pixel_worker, NULL, 
-                          bound_pixel_worker, 
-                          pixel_params);
-          } else {
-            pthread_create_check = pthread_create(&pixel_worker, NULL, 
-                          single_pixel_worker, 
-                          pixel_params);
-          }
-          if (!(isNull(&thread_store))) {
-              thread_join_then_return(&thread_store);
-          } 
+          pthread_create_check = pthread_create(&pixel_worker, NULL, 
+                        worker_func, 
+                        pixel_params);
+          thread_join_then_return(&thread_store);
         }
+        fprintf(stderr, "\nBegan a new thread at: x:%d y:%d\n", i, j);
           
         struct thread_node *new_node = 
           malloc_clear_if_need(sizeof(struct thread_node), &thread_store);
@@ -277,7 +276,6 @@
     while (!isNull(&thread_store)) {
       thread_join_then_return(&thread_store);
     }
-    
     // clean-up the old picture and replace with new picture
     clear_picture(pic);
     overwrite_picture(pic, &tmp);
