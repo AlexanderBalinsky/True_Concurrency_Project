@@ -208,10 +208,17 @@
     pthread_cleanup_pop(1);
   }
 
+  void thread_join_then_return(struct thread_queue* queue) {
+    pthread_t *thread_to_join = dequeue(queue);
+    pthread_join(*thread_to_join, NULL);
+  }
+
   void parallel_blur_picture(struct picture *pic){
     // make new temporary picture to work in
     struct picture tmp;
     init_picture_from_size(&tmp, pic->width, pic->height);
+
+    struct thread_queue thread_store;
     
     // iterate over each pixel in the picture
     // TODO: refactor into boundary loops and inside for loops
@@ -219,7 +226,13 @@
     for(int i = 0 ; i < tmp.width; i++){
       for(int j = 0 ; j < tmp.height; j++){ 
         pthread_t pixel_worker;
-        void * param_space = malloc(sizeof(struct p_work_args));
+        void * param_space = NULL;
+        while (true) {
+          void * param_space = malloc(sizeof(struct p_work_args));
+          if (param_space == NULL) {
+            thread_join_then_return(&thread_store);
+          }
+        }
         struct p_work_args *pixel_params = param_space;
         pixel_params->orig_pic = pic;
         pixel_params->new_pic = &tmp;
@@ -235,8 +248,12 @@
                         single_pixel_worker, 
                         pixel_params);
         }
-        pthread_join(pixel_worker, NULL);
+        enqueue(&thread_store, &pixel_worker);
       }
+    }
+
+    while (!isNull(&thread_store)) {
+      thread_join_then_return(&thread_store);
     }
     
     // clean-up the old picture and replace with new picture

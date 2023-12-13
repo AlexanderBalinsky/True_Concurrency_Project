@@ -3,6 +3,7 @@
 
 #include "Picture.h"
 #include "Utils.h"
+#include "myUtils.h"
   
   // picture transformation routines
   void invert_picture(struct picture *pic);
