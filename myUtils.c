@@ -26,8 +26,8 @@ pthread_t* dequeue(struct thread_queue* queue) {
     pthread_t* thread_return = node_to_rm->thread;
 
     if (queue->head == queue->tail) {
-        queue->head == NULL;
-        queue->tail == NULL;
+        queue->head = NULL;
+        queue->tail = NULL;
         free(node_to_rm);
         return thread_return;
     }

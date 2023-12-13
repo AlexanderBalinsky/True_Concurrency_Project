@@ -248,14 +248,17 @@
         int pthread_create_check = 1;
         while (pthread_create_check != 0) {
           if(i == 0 || j == 0 || i == tmp.width - 1 || j == tmp.height - 1) {
-            pthread_create(&pixel_worker, NULL, 
+            pthread_create_check = pthread_create(&pixel_worker, NULL, 
                           bound_pixel_worker, 
                           pixel_params);
           } else {
-            pthread_create(&pixel_worker, NULL, 
+            pthread_create_check = pthread_create(&pixel_worker, NULL, 
                           single_pixel_worker, 
                           pixel_params);
           }
+          if (!(isNull(&thread_store))) {
+              thread_join_then_return(&thread_store);
+          } 
         }
           
         struct thread_node *new_node = NULL;
