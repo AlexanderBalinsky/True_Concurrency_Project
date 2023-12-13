@@ -219,6 +219,8 @@
     init_picture_from_size(&tmp, pic->width, pic->height);
 
     struct thread_queue thread_store;
+    thread_store.head = NULL;
+    thread_store.tail = NULL;
     
     // iterate over each pixel in the picture
     // TODO: refactor into boundary loops and inside for loops
@@ -228,9 +230,13 @@
         pthread_t pixel_worker;
         void * param_space = NULL;
         while (true) {
-          void * param_space = malloc(sizeof(struct p_work_args));
+          param_space = malloc(sizeof(struct p_work_args));
           if (param_space == NULL) {
-            thread_join_then_return(&thread_store);
+            if (!(isNull(&thread_store))) {
+              thread_join_then_return(&thread_store);
+            } 
+          } else {
+            break;
           }
         }
         struct p_work_args *pixel_params = param_space;
@@ -239,16 +245,31 @@
         pixel_params->x_coord = i;
         pixel_params->y_coord = j;
 
-        if(i == 0 || j == 0 || i == tmp.width - 1 || j == tmp.height - 1) {
-          pthread_create(&pixel_worker, NULL, 
-                        bound_pixel_worker, 
-                        pixel_params);
-        } else {
-          pthread_create(&pixel_worker, NULL, 
-                        single_pixel_worker, 
-                        pixel_params);
+        int pthread_create_check = 1;
+        while (pthread_create_check != 0) {
+          if(i == 0 || j == 0 || i == tmp.width - 1 || j == tmp.height - 1) {
+            pthread_create(&pixel_worker, NULL, 
+                          bound_pixel_worker, 
+                          pixel_params);
+          } else {
+            pthread_create(&pixel_worker, NULL, 
+                          single_pixel_worker, 
+                          pixel_params);
+          }
         }
-        enqueue(&thread_store, &pixel_worker);
+          
+        struct thread_node *new_node = NULL;
+        while (true) {
+          new_node = malloc(sizeof(struct thread_node));
+          if (new_node == NULL) {
+            if (!(isNull(&thread_store))) {
+              thread_join_then_return(&thread_store);
+            } 
+          } else {
+            break;
+          }
+        }
+        enqueue(&thread_store, &pixel_worker, new_node);
       }
     }
 
