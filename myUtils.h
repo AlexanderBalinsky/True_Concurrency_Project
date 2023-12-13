@@ -22,7 +22,7 @@ struct thread_queue {
 
 bool enqueue(struct thread_queue*, pthread_t*, struct thread_node *);
 
-pthread_t* dequeue(struct thread_queue*);
+struct thread_node *dequeue(struct thread_queue*);
 
 bool isNull(struct thread_queue*);
 
