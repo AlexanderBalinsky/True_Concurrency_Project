@@ -33,3 +33,4 @@ void pixel_by_pixel_blur(struct picture *);
 void sector_core_blur(struct picture *, int);
 void row_blur(struct picture *);
 void column_blur(struct picture *);
+bool picture_compare(struct picture*, struct picture*);

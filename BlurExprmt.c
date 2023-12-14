@@ -6,6 +6,7 @@
 #include "BlurExprmt.h"
 #include <math.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define NO_RGB_COMPONENTS 3
 #define BLUR_REGION_SIZE 9
@@ -13,10 +14,86 @@
 #define PTHREAD_CREATE_SUCCESS_CODE 0
 #define BOUNDARY_WIDTH 1
 #define MEMORY_ERROR -2
-#define CORE_NUM_FOR_TESTING 8
+#define CORE_NUM_FOR_TESTING 7
+#define EXP_FUNC_NUM 1
+#define NUM_TEST_PER_PIC 5
 
 
 // ---------- MAIN PROGRAM ---------- \\
+
+  static int no_of_cmds;
+  static char *cmd_strings[];
+  static void (* const cmds[])(struct picture *, const char *);
+
+  void blur_experiment_wrapper(struct picture *pic, const char *unused) {
+
+    FILE *fp = fopen("BlurExprmt.txt", "a+");
+
+    fprintf(fp, "____New Blur Experiment Started____ \n\n\n");
+
+    clock_t begin = clock();
+
+    int blur_func_total_num = no_of_cmds - EXP_FUNC_NUM;
+
+    // Make time array and init to 0 for all functions
+    int time_per_func[blur_func_total_num][NUM_TEST_PER_PIC];
+
+    for (int fnum = 0; fnum < blur_func_total_num; fnum++) {
+      double average_time = 0;
+      double slowest_time = 0;
+      double fastest_time = 0;
+
+      fprintf(fp, "--Starting Testing on Blur Function: %s-- \n\n", cmd_strings[fnum]);
+
+      fprintf(fp, "Time Spent per Attempt (seconds): ");
+
+      for (int iter = 0; iter < NUM_TEST_PER_PIC; iter++) {
+        // Begins clock at current tick number
+        clock_t begin = clock();
+
+        // Blur Function Being Tested
+        cmds[fnum](pic, NULL);
+
+        // Records End time at current tick number
+        clock_t end = clock();
+
+        // Calculates time spent
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+
+        // Adds time spent to array entry
+        time_per_func[fnum][iter] = time_spent;
+        fprintf(fp, "   %f    ", time_spent);
+
+        // Updating Metrics
+        average_time += time_spent;
+        if (slowest_time == 0 || time_spent > slowest_time) {
+          slowest_time = time_spent;
+        }
+        if (fastest_time == 0 || time_spent < fastest_time) {
+          fastest_time = time_spent;
+        }
+      }
+      
+      // Padding for next function tests
+      fprintf(fp, "\n\n\n");
+
+      fprintf(fp, "   Average Time: %f \n", average_time/NUM_TEST_PER_PIC);
+      fprintf(fp, "   Slowest Time: %f \n", slowest_time);
+      fprintf(fp, "   Fastest Time: %f \n", fastest_time);
+
+      // Padding for next function tests
+      fprintf(fp, "\n\n\n");
+    }
+
+    clock_t end = clock();
+    double time_spent_experiment = (double)(end - begin) / CLOCKS_PER_SEC;
+
+    // Padding for if file is appended by another set of tests
+    fprintf(fp, "\n\n\n\n\n");
+
+    fclose(fp);
+
+  }
 
   void sequential_blur_testwrapper(struct picture *pic, const char *unused){
       printf("calling sequential blur\n");
@@ -45,20 +122,22 @@
 
   static void (* const cmds[])(struct picture *, const char *) = { 
     sequential_blur_testwrapper,
-    pixel_by_pixel_blur_testwrapper,
+    //pixel_by_pixel_blur_testwrapper,
     sector_core_blur_testwrapper,
     row_blur_testwrapper,
-    column_blur_testwrapper
+    column_blur_testwrapper,
+    blur_experiment_wrapper
     //optimised_row_column_blur_testwrapper
   };
 
   // list of all possible picture transformations
   static char *cmd_strings[] = { 
     "seq-blur",
-    "pixel-by-pixel-blur",
+    //"pixel-by-pixel-blur",
     "sector-core-blur",
     "row-blur",
-    "column-blur"
+    "column-blur",
+    "blur_experiment"
   };
 
   static int no_of_cmds = sizeof(cmds) / sizeof(cmds[0]);
@@ -538,4 +617,44 @@
     
     clear_picture(pic);
     overwrite_picture(pic, &tmp);
+  }
+
+
+
+// Picture Comparison Function (provided in another form) -----------
+
+
+
+  bool picture_compare(struct picture* pic1, struct picture* pic2) {
+    int width = pic1->width;
+    int height = pic1->height;
+  
+    if(width != pic2->width || height != pic2->height){
+      printf("[!] fail - pictures do not have equal dimensions\n");
+      return 1;
+    }
+  
+    // iterate over the picture pixel-by-pixel and compare RGB values
+    for(int i = 0; i < width; i++){
+      for(int j = 0; j < height; j++){
+        struct pixel pixel1 = get_pixel(pic1, i, j);
+        struct pixel pixel2 = get_pixel(pic2, i, j);
+        
+        int red_diff = pixel1.red - pixel2.red;
+        int green_diff = pixel1.green - pixel2.green;
+        int blue_diff = pixel1.blue - pixel2.blue;
+        
+        if( red_diff > 1 || red_diff < -1 || green_diff > 1 || green_diff < -1 || blue_diff > 1 || blue_diff < -1 ) {
+          /*
+          printf("[!] fail - pictures not equal at cell (%i,%i)\n", i ,j);
+          printf("    pixel1 RGB = \t(%i,\t %i,\t %i)\n", pixel1.red, pixel1.green, pixel1.blue);
+          printf("    pixel2 RGB = \t(%i,\t %i,\t %i)\n", pixel2.red, pixel2.green, pixel2.blue);
+          */
+          return 1;
+        }
+      }
+    }
+  
+    printf("success - pictures identical!\n");
+    return 0;
   }
