@@ -285,7 +285,7 @@
     pthread_cleanup_pop(1);
   }
 
-  static void make_pixel_thread_loop(void*(*worker_func)(void*), 
+  static void make_pixel_thread(void*(*worker_func)(void*), 
                     struct picture *orig_pic, struct picture *new_pic, 
                     int x_coord, int y_coord, struct thread_queue* queue) {
     struct pixel_work_args *pixel_params  = 
@@ -305,37 +305,40 @@
 
     struct thread_queue thread_store;
     init_queue(&thread_store);
-    
-    // iterate over each pixel in the picture
-    // TODO: Make boundary size adjustable since its still based on
-    // boundary width 1
 
     //TOP AND BOTTOM BOUNDARY PIXELS
-    for(int i = 0; i<tmp.width; i++) {
-      make_pixel_thread_loop(&bound_pixel_worker, 
-                               pic, &tmp, i, 0, 
-                               &thread_store);
-      make_pixel_thread_loop(&bound_pixel_worker, 
-                               pic, &tmp, i, tmp.height - BOUNDARY_WIDTH, 
-                               &thread_store);
+    for(int x_coord = 0; x_coord<tmp.width; x_coord++) {
+      make_pixel_thread(&bound_pixel_worker, 
+                        pic, &tmp, x_coord, 0, 
+                        &thread_store);
+      make_pixel_thread(&bound_pixel_worker, 
+                        pic, &tmp, x_coord, tmp.height - BOUNDARY_WIDTH,
+                        &thread_store);
     }
 
     //LEFT AND RIGHT BOUNDARY PIXELS
-    for(int j = BOUNDARY_WIDTH; j<(tmp.height-BOUNDARY_WIDTH); j++) {
-      make_pixel_thread_loop(&bound_pixel_worker, 
-                               pic, &tmp, 0, j, 
-                               &thread_store);
-      make_pixel_thread_loop(&bound_pixel_worker, 
-                               pic, &tmp, tmp.width-BOUNDARY_WIDTH, j, 
-                               &thread_store);
+    for (int y_coord = BOUNDARY_WIDTH; 
+         y_coord<(tmp.height-BOUNDARY_WIDTH); 
+         y_coord++) {
+
+      make_pixel_thread(&bound_pixel_worker, 
+                        pic, &tmp, 0, y_coord, 
+                        &thread_store);
+      make_pixel_thread(&bound_pixel_worker, 
+                        pic, &tmp, tmp.width-BOUNDARY_WIDTH, y_coord, 
+                        &thread_store);
     }
 
     //INSIDE PIXELS
-    for(int i = BOUNDARY_WIDTH ; i < tmp.width - BOUNDARY_WIDTH; i++){
-      for(int j = BOUNDARY_WIDTH ; j < tmp.height - BOUNDARY_WIDTH; j++){
-        make_pixel_thread_loop(&single_pixel_worker, 
-                               pic, &tmp, i, j, 
-                               &thread_store);
+    for(int x_coord = BOUNDARY_WIDTH; 
+        x_coord < tmp.width - BOUNDARY_WIDTH; 
+        x_coord++){
+      for(int y_coord = BOUNDARY_WIDTH; 
+          y_coord < tmp.height - BOUNDARY_WIDTH; 
+          y_coord++){
+
+        make_pixel_thread(&single_pixel_worker, pic, &tmp, 
+                          x_coord, y_coord, &thread_store);
       }
     }
     clear_threads(&thread_store);    
@@ -347,51 +350,14 @@
 
 
   // Blurring by Sectors (number of sectors = core number) ----------
-
-
-
-
-  //TODO ADD WAY TO HANDLE NON EVEN PIXELS BUT MAKING LAST
-  // SECTOR GO TO THE END RATHER THAN FLOOR() SPLIT VALUE
   
   static void *sector_pixel_worker(void *args) {
     struct sector_work_args *pargs = args;
 
-    for(int i = pargs->start_x; i < pargs->end_x; i++){
-      for(int j = pargs->start_y; j < pargs->end_y; j++){
-      
-        // set-up a local pixel on the stack
-        struct pixel rgb = get_pixel(pargs->orig_pic, i, j);
-        
-        // don't need to modify boundary pixels
-        if(i != 0 && j != 0 && i != pargs->orig_pic->width - BOUNDARY_WIDTH
-            && j != pargs->orig_pic->height - BOUNDARY_WIDTH){
-        
-          // set up running RGB component totals for pixel region
-          int sum_red = rgb.red;
-          int sum_green = rgb.green;
-          int sum_blue = rgb.blue;
-      
-          // check the surrounding pixel region
-          for(int n = -1; n <= 1; n++){
-            for(int m = -1; m <= 1; m++){
-              if(n != 0 || m != 0){
-                rgb = get_pixel(pargs->orig_pic, i+n, j+m);
-                sum_red += rgb.red;
-                sum_green += rgb.green;
-                sum_blue += rgb.blue;
-              }
-            }
-          }
-      
-          // compute average pixel RGB value
-          rgb.red = sum_red / BLUR_REGION_SIZE;
-          rgb.green = sum_green / BLUR_REGION_SIZE;
-          rgb.blue = sum_blue / BLUR_REGION_SIZE;
-        }
-      
-        // set pixel to computed region RBG value (unmodified if boundary)
-        set_pixel(pargs->new_pic, i, j, &rgb);
+    for(int x_coord = pargs->start_x; x_coord < pargs->end_x; x_coord++){
+      for(int y_coord = pargs->start_y; y_coord < pargs->end_y; y_coord++){
+        get_avg_pixel_and_set(pargs->orig_pic, pargs->new_pic, 
+                            x_coord, y_coord);
       }
     }
   }
@@ -457,7 +423,7 @@
 
 
 
-  static void make_row_thread_loop(void*(*worker_func)(void*), 
+  static void make_row_thread(void*(*worker_func)(void*), 
                     struct picture *orig_pic, struct picture *new_pic, 
                     int row_num, struct thread_queue* queue) {
     struct row_work_args *row_params  = 
@@ -497,9 +463,7 @@
 
     // iterate over each pixel in the picture
     for(int row_num = 0 ; row_num < tmp.height; row_num++){
-      make_row_thread_loop(&row_pixel_worker, 
-                               pic, &tmp, row_num, 
-                               &thread_store);
+      make_row_thread(&row_pixel_worker, pic, &tmp, row_num, &thread_store);
     }
     clear_threads(&thread_store);
     
@@ -513,7 +477,7 @@
 
 
 
-  static void make_column_thread_loop(void*(*worker_func)(void*), 
+  static void make_column_thread(void*(*worker_func)(void*), 
                     struct picture *orig_pic, struct picture *new_pic, 
                     int column_num, struct thread_queue* queue) {
     struct column_work_args *column_params  = 
@@ -549,7 +513,7 @@
     init_queue(&thread_store);
 
     for(int column_num = 0 ; column_num < tmp.width; column_num++){
-      make_column_thread_loop(&column_pixel_worker, 
+      make_column_thread(&column_pixel_worker, 
                                pic, &tmp, column_num, 
                                &thread_store);
     }
