@@ -105,6 +105,9 @@
 
 
   // Blurring by Sectors (with number of sectors = core number)
+
+  //TODO ADD WAY TO HANDLE NON EVEN PIXELS BUT MAKING LAST
+  // SECTOR GO TO THE END RATHER THAN FLOOR() SPLIT VALUE
   
   static void *sector_pixel_worker(void *args) {
     struct sector_work_args *pargs = args;
