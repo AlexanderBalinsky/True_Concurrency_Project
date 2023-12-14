@@ -213,27 +213,23 @@
   }
 
   static void thread_join_then_return(struct thread_queue* queue) {
-    fprintf(stderr, "1");
+    FILE* fout = fopen("/dev/null", "w");
+    fclose(fout);
     struct thread_node *node_to_rm = dequeue(queue);
-    fprintf(stderr, "2");
     if (node_to_rm == NULL) {
       return;
     }
-    fprintf(stderr, "3");
     pthread_t *thread_to_join = node_to_rm->thread;
-    fprintf(stderr, "4");
     free(node_to_rm);
-    fprintf(stderr, "5");
     struct timespec thread_wait_time;
     thread_wait_time.tv_sec = 10;
     thread_wait_time.tv_nsec = 0;
     pthread_timedjoin_np(*thread_to_join, NULL, &thread_wait_time);
-    fprintf(stderr, "6");
   }
 
   static void clear_threads(struct thread_queue* queue) {
     while (!isNull(queue)) {
-      fprintf(stderr, "Joined a thread!!!");
+      //fprintf(stderr, "Joined a thread!!!");
       thread_join_then_return(queue);
     }
   }
@@ -242,7 +238,7 @@
                                     struct thread_queue* queue) {
     void *new_space = malloc(size_to_malloc);
     while (new_space == NULL) {
-      fprintf(stderr, "is it stuck here?");
+      //fprintf(stderr, "is it stuck here?");
       thread_join_then_return(queue);
       new_space = malloc(size_to_malloc);
     }
@@ -322,9 +318,9 @@
       }
     }
 
-    fprintf(stderr, "Reached the part right before clear threads");
+    //fprintf(stderr, "Reached the part right before clear threads");
     clear_threads(&thread_store);
-    fprintf(stderr, "Reached the part after clear_threads");
+    //fprintf(stderr, "Reached the part after clear_threads");
     
     // clean-up the old picture and replace with new picture
     clear_picture(pic);
