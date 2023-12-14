@@ -36,12 +36,12 @@
 
   void row_blur_testwrapper(struct picture *pic, const char *unused){
       printf("calling parallel: pixel by pixel blur\n");
-      //Call blur when implemented
+      row_blur_picture(pic);
     }
 
   void column_blur_testwrapper(struct picture *pic, const char *unused){
       printf("calling parallel: sector core blur\n");
-      //Call blur when implemented
+      column_blur_picture(pic);
     }
 
   static void (* const cmds[])(struct picture *, const char *) = { 
