@@ -3,7 +3,7 @@
 #include <pthread.h>
 #include "Utils.h"
 #include "Picture.h"
-#include "PicProcess.h"
+//#include "PicProcess.h"
 #include "BlurExprmt.h"
 #include <math.h>
 #include <stdlib.h>
@@ -19,21 +19,47 @@
 
 // ---------- MAIN PROGRAM ---------- \\
 
+  void sequential_blur_testwrapper(struct picture *pic, const char *unused){
+      printf("calling sequential blur\n");
+      blur_picture(pic);
+    }
+
+  void parallel_blur_testwrapper(struct picture *pic, const char *unused){
+      printf("calling parallel: pixel by pixel blur\n");
+      parallel_blur_picture(pic);
+    }
+
   void sector_core_blur_testwrapper(struct picture *pic, const char *unused){
-      printf("calling sector core blur\n");
+      printf("calling parallel: sector core blur\n");
       sector_core_blur(pic, CORE_NUM_FOR_TESTING);
     }
 
+  void row_blur_testwrapper(struct picture *pic, const char *unused){
+      printf("calling parallel: pixel by pixel blur\n");
+      //Call blur when implemented
+    }
+
+  void column_blur_testwrapper(struct picture *pic, const char *unused){
+      printf("calling parallel: sector core blur\n");
+      //Call blur when implemented
+    }
+
   static void (* const cmds[])(struct picture *, const char *) = { 
-    sector_core_blur_testwrapper
-    //blur_picture_testwrapper,
-    //parallel_blur_testwrapper
-    
+    sequential_blur_testwrapper,
+    parallel_blur_testwrapper,
+    sector_core_blur_testwrapper,
+    row_blur_testwrapper,
+    column_blur_testwrapper
+    //optimised_row_col_blur_testwrapper
   };
 
   // list of all possible picture transformations
   static char *cmd_strings[] = { 
-    "sector_core_blur"
+    "blur",
+    "parallel-blur",
+    "sector-core-blur",
+    "row-blur",
+    "column-blur"
   };
 
   static int no_of_cmds = sizeof(cmds) / sizeof(cmds[0]);
@@ -100,8 +126,206 @@
 
   // Sequential Blurring Implementation (provided)
 
+  void blur_picture(struct picture *pic){
+    // make new temporary picture to work in
+    struct picture tmp;
+    init_picture_from_size(&tmp, pic->width, pic->height);
+  
+    // iterate over each pixel in the picture
+    for(int i = 0 ; i < tmp.width; i++){
+      for(int j = 0 ; j < tmp.height; j++){
+      
+        // set-up a local pixel on the stack
+        struct pixel rgb = get_pixel(pic, i, j);
+        
+        // don't need to modify boundary pixels
+        if(i != 0 && j != 0 && i != tmp.width - 1 && j != tmp.height - 1){
+        
+          // set up running RGB component totals for pixel region
+          int sum_red = rgb.red;
+          int sum_green = rgb.green;
+          int sum_blue = rgb.blue;
+      
+          // check the surrounding pixel region
+          for(int n = -1; n <= 1; n++){
+            for(int m = -1; m <= 1; m++){
+              if(n != 0 || m != 0){
+                rgb = get_pixel(pic, i+n, j+m);
+                sum_red += rgb.red;
+                sum_green += rgb.green;
+                sum_blue += rgb.blue;
+              }
+            }
+          }
+      
+          // compute average pixel RGB value
+          rgb.red = sum_red / BLUR_REGION_SIZE;
+          rgb.green = sum_green / BLUR_REGION_SIZE;
+          rgb.blue = sum_blue / BLUR_REGION_SIZE;
+        }
+      
+        // set pixel to computed region RBG value (unmodified if boundary)
+        set_pixel(&tmp, i, j, &rgb);
+      }
+    }
+    
+    // clean-up the old picture and replace with new picture
+    clear_picture(pic);
+    overwrite_picture(pic, &tmp);
+  }
+
 
   // Pixel by Pixel Blurring Implementation
+
+  static void *single_pixel_worker(void *args) {
+    pthread_cleanup_push(thread_cleanup_handler, args);
+    struct p_work_args *pargs = (struct p_work_args*) args;
+
+    struct pixel rgb;
+
+    int sum_red = 0;
+    int sum_green = 0;
+    int sum_blue = 0;
+
+    for(int n = -1; n <= 1; n++){
+      for(int m = -1; m <= 1; m++){
+        rgb = get_pixel(pargs->orig_pic, pargs->x_coord+n, pargs->y_coord+m);
+        sum_red += rgb.red;
+        sum_green += rgb.green;
+        sum_blue += rgb.blue;
+        }
+      }
+    rgb.red = sum_red / BLUR_REGION_SIZE;
+    rgb.green = sum_green / BLUR_REGION_SIZE;
+    rgb.blue = sum_blue / BLUR_REGION_SIZE;
+
+    set_pixel(pargs->new_pic, pargs->x_coord, pargs->y_coord, &rgb);
+
+    pthread_cleanup_pop(1);
+  }
+  
+  static void *bound_pixel_worker(void *args) {
+    pthread_cleanup_push(thread_cleanup_handler, args);
+    struct p_work_args *pargs = (struct p_work_args*) args;
+
+    struct pixel rgb = 
+      get_pixel(pargs->orig_pic, pargs->x_coord, pargs->y_coord);
+    set_pixel(pargs->new_pic, pargs->x_coord, pargs->y_coord, &rgb);
+
+    pthread_cleanup_pop(1);
+  }
+
+  static void thread_join_then_return(struct thread_queue* queue) {
+
+    struct thread_node *node_to_rm = dequeue(queue);
+    if (node_to_rm == NULL) {
+      return;
+    }
+    pthread_t *thread_to_join = node_to_rm->thread;
+    free(node_to_rm);
+    pthread_join(*thread_to_join, NULL);
+    free(thread_to_join);
+  }
+
+  static void clear_threads(struct thread_queue* queue) {
+    while (!isNull(queue)) {
+      //fprintf(stderr, "Joined a thread!!!");
+      thread_join_then_return(queue);
+    }
+  }
+
+  static void *malloc_clear_if_need(size_t size_to_malloc, 
+                                    struct thread_queue* queue) {
+    void *new_space = malloc(size_to_malloc);
+    while (new_space == NULL) {
+      //fprintf(stderr, "is it stuck here?");
+      thread_join_then_return(queue);
+      new_space = malloc(size_to_malloc);
+    }
+    return new_space;
+  }
+
+  static void make_pixel_thread_loop(void*(*worker_func)(void*), 
+                    struct picture *orig_pic, struct picture *new_pic, 
+                    int x_coord, int y_coord, struct thread_queue* queue) {
+    pthread_t *pixel_worker = malloc_clear_if_need(sizeof(pthread_t), queue);
+    struct p_work_args *pixel_params  = 
+          malloc_clear_if_need(sizeof(struct p_work_args), queue);
+    pixel_params->orig_pic = orig_pic;
+    pixel_params->new_pic = new_pic;
+    pixel_params->x_coord = x_coord;
+    pixel_params->y_coord = y_coord;
+
+    int pthread_create_code = PTHREAD_CREATE_FAIL_CODE;
+    while (pthread_create_code != PTHREAD_CREATE_SUCCESS_CODE) {
+      pthread_create_code = pthread_create(pixel_worker, NULL, 
+                    worker_func, 
+                    pixel_params);
+      thread_join_then_return(queue);
+    }
+
+    struct thread_node *new_node = 
+          malloc_clear_if_need(sizeof(struct thread_node), queue);
+    enqueue(queue, pixel_worker, new_node);
+  }
+
+  void parallel_blur_picture(struct picture *pic){
+    // make new temporary picture to work in
+    struct picture tmp;
+    init_picture_from_size(&tmp, pic->width, pic->height);
+
+    struct thread_queue thread_store;
+    init_queue(&thread_store);
+    
+    // iterate over each pixel in the picture
+    // TODO: Make boundary size adjustable since its still based on
+    // boundary width 1
+
+    //TOP AND BOTTOM BOUNDARY PIXELS
+    for(int i = 0; i<tmp.width; i++) {
+      //fprintf(stderr, "\nNew Pixel Worker at: x:%d y:%d\n", i, 0);
+      //fprintf(stderr, "\nNew Pixel Worker at: x:%d y:%d\n", i, tmp.height);
+      make_pixel_thread_loop(&bound_pixel_worker, 
+                               pic, &tmp, i, 0, 
+                               &thread_store);
+      make_pixel_thread_loop(&bound_pixel_worker, 
+                               pic, &tmp, i, tmp.height - BOUNDARY_WIDTH, 
+                               &thread_store);
+    }
+
+    //LEFT AND RIGHT BOUNDARY PIXELS
+    for(int j = BOUNDARY_WIDTH; j<(tmp.height-BOUNDARY_WIDTH); j++) {
+      //fprintf(stderr, "\nNew Pixel Worker at: x:%d y:%d\n", 0, j);
+      //fprintf(stderr, "\nNew Pixel Worker at: x:%d y:%d\n", tmp.width, j);
+      make_pixel_thread_loop(&bound_pixel_worker, 
+                               pic, &tmp, 0, j, 
+                               &thread_store);
+      make_pixel_thread_loop(&bound_pixel_worker, 
+                               pic, &tmp, tmp.width-BOUNDARY_WIDTH, j, 
+                               &thread_store);
+    }
+
+    //INSIDE PIXELS
+    for(int i = BOUNDARY_WIDTH ; i < tmp.width - BOUNDARY_WIDTH; i++){
+      for(int j = BOUNDARY_WIDTH ; j < tmp.height - BOUNDARY_WIDTH; j++){
+        pthread_t pixel_worker;
+
+        make_pixel_thread_loop(&single_pixel_worker, 
+                               pic, &tmp, i, j, 
+                               &thread_store);
+
+        //fprintf(stderr, "\nNew Pixel Worker at: x:%d y:%d\n", i, j);
+      }
+    }
+
+    //fprintf(stderr, "Reached the part right before clear threads");
+    clear_threads(&thread_store);
+    //fprintf(stderr, "Reached the part after clear_threads");
+    
+    // clean-up the old picture and replace with new picture
+    clear_picture(pic);
+    overwrite_picture(pic, &tmp);
+  }
 
 
   // Blurring by Sectors (with number of sectors = core number)

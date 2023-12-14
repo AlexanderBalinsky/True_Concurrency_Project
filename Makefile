@@ -6,8 +6,8 @@ picture_lib: SeqMain.o Utils.o Picture.o PicProcess.o myUtils.o
 concurrent_picture_lib: ConcMain.o Utils.o Picture.o PicProcess.o PicStore.o myUtils.o
 	gcc sod_118/sod.c ConcMain.o Utils.o Picture.o PicProcess.o PicStore.o myUtils.o -I sod_118 -lm -lpthread -o concurrent_picture_lib	
 
-blur_opt_exprmt: BlurExprmt.o Utils.o Picture.o PicProcess.o myUtils.o
-	gcc sod_118/sod.c BlurExprmt.o Utils.o Picture.o PicProcess.o myUtils.o -I sod_118 -lm -lpthread -o blur_opt_exprmt
+blur_opt_exprmt: BlurExprmt.o Utils.o Picture.o myUtils.o
+	gcc sod_118/sod.c BlurExprmt.o Utils.o Picture.o myUtils.o -I sod_118 -lm -lpthread -o blur_opt_exprmt
 
 picture_compare: Compare.o Utils.o Picture.o
 	gcc sod_118/sod.c Compare.o Utils.o Picture.o -I sod_118 -lm -o picture_compare
