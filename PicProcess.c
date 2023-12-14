@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include "PicProcess.h"
 #include <pthread.h>
 #include <time.h>
@@ -226,7 +225,6 @@
   }
 
   static void thread_join_then_return(struct thread_queue* queue) {
-    int DEBUG_time = time_spent();
 
     struct thread_node *node_to_rm = dequeue(queue);
     if (node_to_rm == NULL) {
@@ -234,11 +232,8 @@
     }
     pthread_t *thread_to_join = node_to_rm->thread;
     free(node_to_rm);
-    struct timespec thread_wait_time;
-    thread_wait_time.tv_sec = 10;
-    thread_wait_time.tv_nsec = 0;
-    pthread_timedjoin_np(*thread_to_join, NULL, &thread_wait_time);
-    
+    pthread_join(*thread_to_join, NULL);
+    free(thread_to_join);
   }
 
   static void clear_threads(struct thread_queue* queue) {
@@ -262,7 +257,7 @@
   static void make_pixel_thread_loop(void*(*worker_func)(void*), 
                     struct picture *orig_pic, struct picture *new_pic, 
                     int x_coord, int y_coord, struct thread_queue* queue) {
-    pthread_t pixel_worker;
+    pthread_t *pixel_worker = malloc_clear_if_need(sizeof(pthread_t), queue);
     struct p_work_args *pixel_params  = 
           malloc_clear_if_need(sizeof(struct p_work_args), queue);
     pixel_params->orig_pic = orig_pic;
@@ -272,7 +267,7 @@
 
     int pthread_create_code = PTHREAD_CREATE_FAIL_CODE;
     while (pthread_create_code != PTHREAD_CREATE_SUCCESS_CODE) {
-      pthread_create_code = pthread_create(&pixel_worker, NULL, 
+      pthread_create_code = pthread_create(pixel_worker, NULL, 
                     worker_func, 
                     pixel_params);
       thread_join_then_return(queue);
@@ -280,7 +275,7 @@
 
     struct thread_node *new_node = 
           malloc_clear_if_need(sizeof(struct thread_node), queue);
-    enqueue(queue, &pixel_worker, new_node);
+    enqueue(queue, pixel_worker, new_node);
   }
 
   void parallel_blur_picture(struct picture *pic){

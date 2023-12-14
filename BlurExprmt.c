@@ -200,3 +200,10 @@
     clear_picture(pic);
     overwrite_picture(pic, &tmp);
   }
+
+
+  // Row Blurring Implementation
+
+
+
+  // Column Blurring Implementation
