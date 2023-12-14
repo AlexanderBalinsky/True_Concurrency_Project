@@ -169,18 +169,6 @@
     overwrite_picture(pic, &tmp);
   }
 
-  static double time_spent(void) {
-    clock_t start = clock();
-    // Put timed code here with actual debug file
-    FILE* fout = fopen("/dev/null", "w");
-    fclose(fout);
-    // timed code block
-    clock_t end = clock();
-    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
-
-    return time_spent;
-  }
-
   static void thread_cleanup_handler(void* args)
   {
       free(args);
