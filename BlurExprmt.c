@@ -127,8 +127,8 @@
     
     // don't need to modify boundary pixels
     if(x_coord != 0 && y_coord != 0 && 
-        x_coord != new_pic->width - BOUNDARY_WIDTH && 
-        y_coord != new_pic->height - BOUNDARY_WIDTH) {
+        x_coord != orig_pic->width - BOUNDARY_WIDTH && 
+        y_coord != orig_pic->height - BOUNDARY_WIDTH) {
     
       // set up running RGB component totals for pixel region
       int sum_red = rgb.red;
@@ -139,7 +139,7 @@
       for(int n = -1; n <= 1; n++){
         for(int m = -1; m <= 1; m++){
           if(n != 0 || m != 0){
-            rgb = get_pixel(new_pic, x_coord+n, y_coord+m);
+            rgb = get_pixel(orig_pic, x_coord+n, y_coord+m);
             sum_red += rgb.red;
             sum_green += rgb.green;
             sum_blue += rgb.blue;
@@ -268,8 +268,25 @@
     pthread_cleanup_push(thread_cleanup_handler, args);
     struct pixel_work_args *pargs = (struct pixel_work_args*) args;
 
-    get_avg_pixel_and_set(pargs->orig_pic, pargs->new_pic, 
-                          pargs->x_coord, pargs->y_coord);
+    struct pixel rgb;
+
+    int sum_red = 0;
+    int sum_green = 0;
+    int sum_blue = 0;
+
+    for(int n = -1; n <= 1; n++){
+      for(int m = -1; m <= 1; m++){
+        rgb = get_pixel(pargs->orig_pic, pargs->x_coord+n, pargs->y_coord+m);
+        sum_red += rgb.red;
+        sum_green += rgb.green;
+        sum_blue += rgb.blue;
+        }
+      }
+    rgb.red = sum_red / BLUR_REGION_SIZE;
+    rgb.green = sum_green / BLUR_REGION_SIZE;
+    rgb.blue = sum_blue / BLUR_REGION_SIZE;
+
+    set_pixel(pargs->new_pic, pargs->x_coord, pargs->y_coord, &rgb);
 
     pthread_cleanup_pop(1);
   }
@@ -441,7 +458,7 @@
     struct row_work_args *pargs = (struct row_work_args*) args;
 
     // iterate over each pixel in the row
-    for(int x_coord = 0 ; x_coord < pargs->new_pic->width; x_coord++) {
+    for(int x_coord = 0; x_coord < pargs->new_pic->width; x_coord++) {
       get_avg_pixel_and_set(pargs->orig_pic, pargs->new_pic, 
                             x_coord, pargs->row_num);
     }
