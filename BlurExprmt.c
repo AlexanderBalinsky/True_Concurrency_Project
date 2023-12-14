@@ -14,14 +14,26 @@
 #define PTHREAD_CREATE_SUCCESS_CODE 0
 #define BOUNDARY_WIDTH 1
 #define MEMORY_ERROR -2
+#define CORE_NUM_FOR_TESTING 8
+
 
 // ---------- MAIN PROGRAM ---------- \\
 
+  void sector_core_blur_testwrapper(struct picture *pic, const char *unused){
+      printf("calling sector core blur\n");
+      sector_core_blur(pic, CORE_NUM_FOR_TESTING);
+    }
+
   static void (* const cmds[])(struct picture *, const char *) = { 
-    sector_core_blur_wrapper
-    //blur_picture_wrapper,
-    //parallel_blur_wrapper
+    sector_core_blur_testwrapper
+    //blur_picture_testwrapper,
+    //parallel_blur_testwrapper
     
+  };
+
+  // list of all possible picture transformations
+  static char *cmd_strings[] = { 
+    "sector_core_blur"
   };
 
   static int no_of_cmds = sizeof(cmds) / sizeof(cmds[0]);
@@ -76,8 +88,8 @@
     
     clear_picture(&pic);
     return 0;
-
   }
+
 
   //UTILITY
   static void thread_cleanup_handler(void* args)
@@ -97,9 +109,8 @@
   static void *sector_pixel_worker(void *args) {
     struct sector_work_args *pargs = args;
 
-
-    for(int i = pargs->start_x; i <= pargs->end_x; i++){
-      for(int j = pargs->start_y; j <= pargs->end_y; j++){
+    for(int i = pargs->start_x; i < pargs->end_x; i++){
+      for(int j = pargs->start_y; j < pargs->end_y; j++){
       
         // set-up a local pixel on the stack
         struct pixel rgb = get_pixel(pargs->orig_pic, i, j);
@@ -138,7 +149,7 @@
   }
 
   // All sectors are split vertically
-  void sector_core_blur_wrapper(struct picture *pic, int num_cores){
+  void sector_core_blur(struct picture *pic, int num_cores){
 
     // can't have less than 1 thread, and cores assumed to be 32 or less
     if (num_cores < 1 || num_cores > 32) {
@@ -162,17 +173,18 @@
 
     // Main loop to create all threads
     // creates thread arguments
-    for (int sector_num = 0; sector_num<num_cores; i++) {
-      sector_worker_args[i].orig_pic = pic;
-      sector_worker_args[i].new_pic = &tmp;
-      sector_worker_args[i].start_x = sector_num * sector_width;
-      sector_worker_args[i].end_x= (sector_num + 1) * sector_width - 1;
-      sector_worker_args[i].start_y = 0; //top of the image
-      sector_worker_args[i].end_y = tmp.height - 1;
+    for (int sector_num = 0; sector_num<num_cores; sector_num++) {
+      struct sector_work_args *pargs = &sector_worker_args[sector_num];
+      pargs->orig_pic = pic;
+      pargs->new_pic = &tmp;
+      pargs->start_x = sector_num * sector_width;
+      pargs->end_x= (sector_num + 1) * sector_width;
+      pargs->start_y = 0; //top of the image
+      pargs->end_y = tmp.height;
 
-      pthread_create(&sector_threads[i], NULL,
+      pthread_create(&sector_threads[sector_num], NULL,
                     sector_pixel_worker,
-                    &sector_worker_args[i]);
+                    pargs);
     }
 
     for (int i = 0; i<num_cores; i++) {

@@ -6,3 +6,5 @@ struct sector_work_args {
     int end_x;
     int end_y;
 };
+
+void sector_core_blur(struct picture *, int);
