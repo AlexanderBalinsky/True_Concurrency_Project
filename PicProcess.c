@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "PicProcess.h"
 #include <pthread.h>
+#include <time.h>
 
   #define NO_RGB_COMPONENTS 3
   #define BLUR_REGION_SIZE 9
@@ -169,6 +170,18 @@
     overwrite_picture(pic, &tmp);
   }
 
+  static double time_spent(void) {
+    clock_t start = clock();
+    // Put timed code here with actual debug file
+    FILE* fout = fopen("/dev/null", "w");
+    fclose(fout);
+    // timed code block
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+
+    return time_spent;
+  }
+
   static void thread_cleanup_handler(void* args)
   {
       free(args);
@@ -213,8 +226,8 @@
   }
 
   static void thread_join_then_return(struct thread_queue* queue) {
-    FILE* fout = fopen("/dev/null", "w");
-    fclose(fout);
+    int DEBUG_time = time_spent();
+
     struct thread_node *node_to_rm = dequeue(queue);
     if (node_to_rm == NULL) {
       return;
@@ -225,6 +238,7 @@
     thread_wait_time.tv_sec = 10;
     thread_wait_time.tv_nsec = 0;
     pthread_timedjoin_np(*thread_to_join, NULL, &thread_wait_time);
+    
   }
 
   static void clear_threads(struct thread_queue* queue) {
