@@ -305,8 +305,6 @@
     //INSIDE PIXELS
     for(int i = BOUNDARY_WIDTH ; i < tmp.width - BOUNDARY_WIDTH; i++){
       for(int j = BOUNDARY_WIDTH ; j < tmp.height - BOUNDARY_WIDTH; j++){
-        pthread_t pixel_worker;
-
         make_pixel_thread_loop(&single_pixel_worker, 
                                pic, &tmp, i, j, 
                                &thread_store);

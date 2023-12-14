@@ -16,8 +16,20 @@ struct sector_work_args {
     int end_y;
 };
 
+struct row_work_args {
+    struct picture *orig_pic;
+    struct picture *new_pic;
+    int row_num;
+};
+
+struct column_work_args {
+    struct picture *orig_pic;
+    struct picture *new_pic;
+    int col_num;
+};
+
 void blur_picture(struct picture *);
 void parallel_blur_picture(struct picture *);
 void sector_core_blur(struct picture *, int);
-void column_blur(struct picture *);
 void row_blur(struct picture *);
+void column_blur(struct picture *);

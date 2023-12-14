@@ -308,8 +308,6 @@
     //INSIDE PIXELS
     for(int i = BOUNDARY_WIDTH ; i < tmp.width - BOUNDARY_WIDTH; i++){
       for(int j = BOUNDARY_WIDTH ; j < tmp.height - BOUNDARY_WIDTH; j++){
-        pthread_t pixel_worker;
-
         make_pixel_thread_loop(&single_pixel_worker, 
                                pic, &tmp, i, j, 
                                &thread_store);
@@ -428,6 +426,203 @@
 
   // Row Blurring Implementation
 
+  static void make_row_thread_loop(void*(*worker_func)(void*), 
+                    struct picture *orig_pic, struct picture *new_pic, 
+                    int row_num, struct thread_queue* queue) {
+    pthread_t *pixel_worker = malloc_clear_if_need(sizeof(pthread_t), queue);
+    struct row_work_args *pixel_params  = 
+          malloc_clear_if_need(sizeof(struct p_work_args), queue);
+    pixel_params->orig_pic = orig_pic;
+    pixel_params->new_pic = new_pic;
+    pixel_params->row_num = row_num;
+
+
+    int pthread_create_code = PTHREAD_CREATE_FAIL_CODE;
+    while (pthread_create_code != PTHREAD_CREATE_SUCCESS_CODE) {
+      pthread_create_code = pthread_create(pixel_worker, NULL, 
+                    worker_func, 
+                    pixel_params);
+      thread_join_then_return(queue);
+    }
+
+    struct thread_node *new_node = 
+          malloc_clear_if_need(sizeof(struct thread_node), queue);
+    enqueue(queue, pixel_worker, new_node);
+  }
+
+  static void *row_pixel_worker(void *args) {
+    pthread_cleanup_push(thread_cleanup_handler, args);
+
+    struct row_work_args *pargs = (struct row_work_args*) args;
+
+    // iterate over each pixel in the row
+    for(int x_coord = 0 ; x_coord < pargs->new_pic->width; x_coord++){
+    
+      // set-up a local pixel on the stack
+      struct pixel rgb = get_pixel(pargs->orig_pic, x_coord, pargs->row_num);
+      
+      // don't need to modify boundary pixels
+      if(x_coord != 0 && pargs->row_num != 0 && 
+        x_coord != pargs->orig_pic->width - 1 && 
+        pargs->row_num != pargs->orig_pic->height - 1){
+      
+        // set up running RGB component totals for pixel region
+        int sum_red = rgb.red;
+        int sum_green = rgb.green;
+        int sum_blue = rgb.blue;
+    
+        // check the surrounding pixel region
+        for(int n = -1; n <= 1; n++){
+          for(int m = -1; m <= 1; m++){
+            if(n != 0 || m != 0){
+              rgb = get_pixel(pargs->orig_pic, x_coord+n, pargs->row_num+m);
+              sum_red += rgb.red;
+              sum_green += rgb.green;
+              sum_blue += rgb.blue;
+            }
+          }
+        }
+    
+        // compute average pixel RGB value
+        rgb.red = sum_red / BLUR_REGION_SIZE;
+        rgb.green = sum_green / BLUR_REGION_SIZE;
+        rgb.blue = sum_blue / BLUR_REGION_SIZE;
+      }
+    
+      // set pixel to computed region RBG value (unmodified if boundary)
+      set_pixel(pargs->new_pic, x_coord, pargs->row_num, &rgb);
+    }
+
+    pthread_cleanup_pop(1);
+  }
+
+  void row_blur_picture(struct picture *pic){
+    // make new temporary picture to work in
+    struct picture tmp;
+    init_picture_from_size(&tmp, pic->width, pic->height);
+
+    struct thread_queue thread_store;
+    init_queue(&thread_store);
+    
+    // iterate over each pixel in the picture
+    // TODO: Make boundary size adjustable since its still based on
+    // boundary width 1
+
+    // iterate over each pixel in the picture
+    for(int row_num = 0 ; row_num < tmp.height; row_num++){
+      make_row_thread_loop(&row_pixel_worker, 
+                               pic, &tmp, row_num, 
+                               &thread_store);
+    }
+
+    //fprintf(stderr, "Reached the part right before clear threads");
+    clear_threads(&thread_store);
+    //fprintf(stderr, "Reached the part after clear_threads");
+    
+    // clean-up the old picture and replace with new picture
+    clear_picture(pic);
+    overwrite_picture(pic, &tmp);
+  }
+
 
 
   // Column Blurring Implementation
+
+  static void make_col_thread_loop(void*(*worker_func)(void*), 
+                    struct picture *orig_pic, struct picture *new_pic, 
+                    int col_num, struct thread_queue* queue) {
+    pthread_t *pixel_worker = malloc_clear_if_need(sizeof(pthread_t), queue);
+    struct row_work_args *pixel_params  = 
+          malloc_clear_if_need(sizeof(struct p_work_args), queue);
+    pixel_params->orig_pic = orig_pic;
+    pixel_params->new_pic = new_pic;
+    pixel_params->row_num = col_num;
+
+
+    int pthread_create_code = PTHREAD_CREATE_FAIL_CODE;
+    while (pthread_create_code != PTHREAD_CREATE_SUCCESS_CODE) {
+      pthread_create_code = pthread_create(pixel_worker, NULL, 
+                    worker_func, 
+                    pixel_params);
+      thread_join_then_return(queue);
+    }
+
+    struct thread_node *new_node = 
+          malloc_clear_if_need(sizeof(struct thread_node), queue);
+    enqueue(queue, pixel_worker, new_node);
+  }
+
+
+  static void *column_pixel_worker(void *args) {
+    pthread_cleanup_push(thread_cleanup_handler, args);
+
+    struct column_work_args *pargs = (struct column_work_args*) args;
+
+    // iterate over each pixel in the row
+    for(int y_coord = 0 ; y_coord < pargs->new_pic->height; y_coord++){
+    
+      // set-up a local pixel on the stack
+      struct pixel rgb = get_pixel(pargs->orig_pic, pargs->col_num, y_coord);
+      
+      // don't need to modify boundary pixels
+      if(pargs->col_num != 0 && y_coord != 0 && 
+        pargs->col_num != pargs->orig_pic->width - 1 && 
+        y_coord != pargs->orig_pic->height - 1){
+      
+        // set up running RGB component totals for pixel region
+        int sum_red = rgb.red;
+        int sum_green = rgb.green;
+        int sum_blue = rgb.blue;
+    
+        // check the surrounding pixel region
+        for(int n = -1; n <= 1; n++){
+          for(int m = -1; m <= 1; m++){
+            if(n != 0 || m != 0){
+              rgb = get_pixel(pargs->orig_pic, pargs->col_num+n, y_coord+m);
+              sum_red += rgb.red;
+              sum_green += rgb.green;
+              sum_blue += rgb.blue;
+            }
+          }
+        }
+    
+        // compute average pixel RGB value
+        rgb.red = sum_red / BLUR_REGION_SIZE;
+        rgb.green = sum_green / BLUR_REGION_SIZE;
+        rgb.blue = sum_blue / BLUR_REGION_SIZE;
+      }
+    
+      // set pixel to computed region RBG value (unmodified if boundary)
+      set_pixel(pargs->new_pic, pargs->col_num, y_coord, &rgb);
+    }
+
+    pthread_cleanup_pop(1);
+  }
+
+  void column_blur_picture(struct picture *pic){
+    // make new temporary picture to work in
+    struct picture tmp;
+    init_picture_from_size(&tmp, pic->width, pic->height);
+
+    struct thread_queue thread_store;
+    init_queue(&thread_store);
+    
+    // iterate over each pixel in the picture
+    // TODO: Make boundary size adjustable since its still based on
+    // boundary width 1
+
+    // iterate over each pixel in the picture
+    for(int col_num = 0 ; col_num < tmp.width; col_num++){
+      make_col_thread_loop(&column_pixel_worker, 
+                               pic, &tmp, col_num, 
+                               &thread_store);
+    }
+
+    //fprintf(stderr, "Reached the part right before clear threads");
+    clear_threads(&thread_store);
+    //fprintf(stderr, "Reached the part after clear_threads");
+    
+    // clean-up the old picture and replace with new picture
+    clear_picture(pic);
+    overwrite_picture(pic, &tmp);
+  }
