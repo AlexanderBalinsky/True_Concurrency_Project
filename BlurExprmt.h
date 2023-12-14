@@ -1,6 +1,6 @@
 #include "myUtils.h"
 
-struct p_work_args {
+struct pixel_work_args {
     struct picture *orig_pic;
     struct picture *new_pic;
     int x_coord;
@@ -25,11 +25,11 @@ struct row_work_args {
 struct column_work_args {
     struct picture *orig_pic;
     struct picture *new_pic;
-    int col_num;
+    int column_num;
 };
 
-void blur_picture(struct picture *);
-void parallel_blur_picture(struct picture *);
+void sequential_blur(struct picture *);
+void pixel_by_pixel_blur(struct picture *);
 void sector_core_blur(struct picture *, int);
 void row_blur(struct picture *);
 void column_blur(struct picture *);
