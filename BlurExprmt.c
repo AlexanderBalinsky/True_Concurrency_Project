@@ -123,7 +123,7 @@
         // Checking if produced picture is correct
         if (!picture_compare(&pic_for_test, &correct_blur)) {
           printf("\nAlgorithm Failed\n");
-          return 1;
+          return;
         }
       }
       
