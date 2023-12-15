@@ -19,7 +19,6 @@
 #define BOUNDARY_WIDTH 1
 #define MEMORY_ERROR -2
 #define CORE_NUM_FOR_TESTING 7
-#define EXP_FUNC_NUM 1
 #define BILLION 1000000000 
 #define MILLION 1000000
 
@@ -33,7 +32,7 @@
   static void save_pic_to_res_folder(struct picture* pic, 
                                      char *filename) {
     // Chosen arbitrarily as a decent path limit
-    char path[75];
+    char path[150];
     sprintf(path, "BlurExprmt_output_images/%s.jpg", filename);
     save_picture_to_file(pic, path);
   }
@@ -46,7 +45,7 @@
     // It is used as a baseline for comparisons
     struct picture correct_blur;
     init_picture_from_size(&correct_blur, pic->width, pic->height);
-    overwrite_picture(&correct_blur, pic);
+    correct_blur.img = copy_image(pic->img);
     sequential_blur(&correct_blur);
 
 
@@ -56,7 +55,7 @@
 
     clock_t begin = clock();
 
-    int blur_func_total_num = no_of_cmds - EXP_FUNC_NUM;
+    int blur_func_total_num = no_of_cmds;
 
     // Make time array and init to 0 for all functions
     int time_per_func[blur_func_total_num][number_of_tests];
@@ -75,7 +74,7 @@
 
         struct picture pic_for_test;
         init_picture_from_size(&pic_for_test, pic->width, pic->height);
-        overwrite_picture(&pic_for_test, pic);
+        pic_for_test.img = copy_image(pic->img);
 
         // Begins clock at current tick number
         struct timespec start;
@@ -83,14 +82,13 @@
         clock_gettime(CLOCK_REALTIME, &start);
 
         // Blur Function Being Tested
-        cmds[fnum](pic, NULL);
+        cmds[fnum](&pic_for_test, NULL);
 
         // Calculates time spent
         clock_gettime(CLOCK_REALTIME, &end);
         double diff = (BILLION * (end.tv_sec - start.tv_sec) + 
                       end.tv_nsec - start.tv_nsec)
                       / MILLION;
-
         // FILE SAVING PROCESS -------------
         char new_filename[150];
         char base[150];
@@ -104,7 +102,7 @@
         }
         snprintf(new_filename, sizeof(new_filename), "%s_%s_%d", 
                 base_name, cmd_strings[fnum], iter);
-        save_pic_to_res_folder(pic, new_filename);
+        save_pic_to_res_folder(&pic_for_test, new_filename);
         // FILE SAVING PROCESS FINISHED ---------
 
         // Adds time spent to array entry
@@ -121,10 +119,12 @@
         }
 
         // Checking if produced picture is correct
-        if (!picture_compare(&pic_for_test, &correct_blur)) {
+        bool compare_result = picture_compare(&pic_for_test, &correct_blur);
+        if (!compare_result) {
           printf("\nAlgorithm Failed\n");
           return;
         }
+        clear_picture(&pic_for_test);
       }
       
       // Padding for next function tests
@@ -142,6 +142,8 @@
     fprintf(fp, "\n\n\n\n\n");
 
     fclose(fp);
+
+    clear_picture(&correct_blur);
 
   }
 
@@ -661,7 +663,7 @@
   
     if(width != pic2->width || height != pic2->height){
       printf("[!] fail - pictures do not have equal dimensions\n");
-      return 1;
+      return false;
     }
   
     // iterate over the picture pixel-by-pixel and compare RGB values
@@ -675,16 +677,12 @@
         int blue_diff = pixel1.blue - pixel2.blue;
         
         if( red_diff > 1 || red_diff < -1 || green_diff > 1 || green_diff < -1 || blue_diff > 1 || blue_diff < -1 ) {
-          /*
           printf("[!] fail - pictures not equal at cell (%i,%i)\n", i ,j);
           printf("    pixel1 RGB = \t(%i,\t %i,\t %i)\n", pixel1.red, pixel1.green, pixel1.blue);
           printf("    pixel2 RGB = \t(%i,\t %i,\t %i)\n", pixel2.red, pixel2.green, pixel2.blue);
-          */
-          return 1;
+          return false;
         }
       }
     }
-  
-    printf("success - pictures identical!\n");
-    return 0;
+    return true;
   }
