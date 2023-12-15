@@ -22,6 +22,18 @@
 #define BILLION 1000000000.0
 #define MILLION 1000000.0
 
+/*
+after running "make" to create all the files, do the below:
+To run the experiments, the command “./blur_opt_exprmt iterations pic.jpg” is used. 
+The values of iterations and pic.jpg are chosen by the test runner,
+e.g. “/blur_opt_exprmt 5 imagines/ducks1.jpg”. 
+Results are stored in BlurExprmt.txt automatically and image results are stored 
+in the folder BlurExprmt_output_images.  
+To get the results of my test, I simply ran:
+make
+./blur_opt_exprmt 100 blurtest_images/BigBenRes.jpg
+*/
+
 
 // ---------- MAIN PROGRAM ---------- \\
 
