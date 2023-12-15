@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
@@ -7,6 +8,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stdint.h>
 
 #define NO_RGB_COMPONENTS 3
 #define BLUR_REGION_SIZE 9
@@ -17,6 +19,8 @@
 #define CORE_NUM_FOR_TESTING 7
 #define EXP_FUNC_NUM 1
 #define NUM_TEST_PER_PIC 5
+#define BILLION 1000000000 
+#define MILLION 1000000
 
 
 // ---------- MAIN PROGRAM ---------- \\
@@ -27,7 +31,7 @@
 
   void blur_experiment_wrapper(struct picture *pic, const char *unused) {
 
-    FILE *fp = fopen("BlurExprmt.txt", "a+");
+    FILE *fp = fopen("BlurExprmt.txt", "w+");
 
     fprintf(fp, "____New Blur Experiment Started____ \n\n\n");
 
@@ -45,41 +49,43 @@
 
       fprintf(fp, "--Starting Testing on Blur Function: %s-- \n\n", cmd_strings[fnum]);
 
-      fprintf(fp, "Time Spent per Attempt (seconds): ");
+      fprintf(fp, "Time Spent per Attempt (milliseconds): ");
 
       for (int iter = 0; iter < NUM_TEST_PER_PIC; iter++) {
         // Begins clock at current tick number
-        clock_t begin = clock();
+        struct timespec start;
+        struct timespec end;
+        clock_gettime(CLOCK_REALTIME, &start);
 
         // Blur Function Being Tested
         cmds[fnum](pic, NULL);
 
-        // Records End time at current tick number
-        clock_t end = clock();
-
         // Calculates time spent
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        clock_gettime(CLOCK_REALTIME, &end);
+        double diff = (BILLION * (end.tv_sec - start.tv_sec) + 
+                      end.tv_nsec - start.tv_nsec)
+                      / MILLION;
 
         // Adds time spent to array entry
-        time_per_func[fnum][iter] = time_spent;
-        fprintf(fp, "   %f    ", time_spent);
+        time_per_func[fnum][iter] = diff;
+        fprintf(fp, "   %f    ", diff);
 
         // Updating Metrics
-        average_time += time_spent;
-        if (slowest_time == 0 || time_spent > slowest_time) {
-          slowest_time = time_spent;
+        average_time += diff;
+        if (slowest_time == 0 || diff > slowest_time) {
+          slowest_time = diff;
         }
-        if (fastest_time == 0 || time_spent < fastest_time) {
-          fastest_time = time_spent;
+        if (fastest_time == 0 || diff < fastest_time) {
+          fastest_time = diff;
         }
       }
       
       // Padding for next function tests
       fprintf(fp, "\n\n\n");
 
-      fprintf(fp, "   Average Time: %f \n", average_time/NUM_TEST_PER_PIC);
-      fprintf(fp, "   Slowest Time: %f \n", slowest_time);
-      fprintf(fp, "   Fastest Time: %f \n", fastest_time);
+      fprintf(fp, "   Average Time: %f ms \n", average_time/NUM_TEST_PER_PIC);
+      fprintf(fp, "   Slowest Time: %f ms \n", slowest_time);
+      fprintf(fp, "   Fastest Time: %f ms \n", fastest_time);
 
       // Padding for next function tests
       fprintf(fp, "\n\n\n");
@@ -122,7 +128,7 @@
 
   static void (* const cmds[])(struct picture *, const char *) = { 
     sequential_blur_testwrapper,
-    //pixel_by_pixel_blur_testwrapper,
+    pixel_by_pixel_blur_testwrapper,
     sector_core_blur_testwrapper,
     row_blur_testwrapper,
     column_blur_testwrapper,
@@ -133,7 +139,7 @@
   // list of all possible picture transformations
   static char *cmd_strings[] = { 
     "seq-blur",
-    //"pixel-by-pixel-blur",
+    "pixel-by-pixel-blur",
     "sector-core-blur",
     "row-blur",
     "column-blur",

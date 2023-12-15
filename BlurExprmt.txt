@@ -1,0 +1,63 @@
+____New Blur Experiment Started____ 
+
+
+--Starting Testing on Blur Function: seq-blur-- 
+
+Time Spent per Attempt (milliseconds):    316.000000       311.000000       312.000000       335.000000       312.000000    
+
+
+   Average Time: 317.200000 ms 
+   Slowest Time: 335.000000 ms 
+   Fastest Time: 311.000000 ms 
+
+
+
+--Starting Testing on Blur Function: pixel-by-pixel-blur-- 
+
+Time Spent per Attempt (milliseconds):    17049.000000       17288.000000       17558.000000       17216.000000       17510.000000    
+
+
+   Average Time: 17324.200000 ms 
+   Slowest Time: 17558.000000 ms 
+   Fastest Time: 17049.000000 ms 
+
+
+
+--Starting Testing on Blur Function: sector-core-blur-- 
+
+Time Spent per Attempt (milliseconds):    75.000000       75.000000       71.000000       75.000000       75.000000    
+
+
+   Average Time: 74.200000 ms 
+   Slowest Time: 75.000000 ms 
+   Fastest Time: 71.000000 ms 
+
+
+
+--Starting Testing on Blur Function: row-blur-- 
+
+Time Spent per Attempt (milliseconds):    60.000000       57.000000       57.000000       58.000000       57.000000    
+
+
+   Average Time: 57.800000 ms 
+   Slowest Time: 60.000000 ms 
+   Fastest Time: 57.000000 ms 
+
+
+
+--Starting Testing on Blur Function: column-blur-- 
+
+Time Spent per Attempt (milliseconds):    66.000000       74.000000       67.000000       67.000000       66.000000    
+
+
+   Average Time: 68.000000 ms 
+   Slowest Time: 74.000000 ms 
+   Fastest Time: 66.000000 ms 
+
+
+
+
+
+
+
+
