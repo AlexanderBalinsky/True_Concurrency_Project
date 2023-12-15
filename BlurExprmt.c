@@ -42,6 +42,14 @@
   void blur_experiment_wrapper(struct picture *pic, int number_of_tests,
                               const char* filename) {
 
+    // Sequential Version that was given is known to be correct so
+    // It is used as a baseline for comparisons
+    struct picture correct_blur;
+    init_picture_from_size(&correct_blur, pic->width, pic->height);
+    overwrite_picture(&correct_blur, pic);
+    sequential_blur(&correct_blur);
+
+
     FILE *fp = fopen("BlurExprmt.txt", "w+");
 
     fprintf(fp, "____New Blur Experiment Started____ \n\n\n");
@@ -58,11 +66,17 @@
       double slowest_time = 0;
       double fastest_time = 0;
 
-      fprintf(fp, "--Starting Testing on Blur Function: %s-- \n\n", cmd_strings[fnum]);
+      fprintf(fp, "--Starting Testing on Blur Function: %s-- \n\n", 
+              cmd_strings[fnum]);
 
       fprintf(fp, "Time Spent per Attempt (milliseconds): ");
 
       for (int iter = 0; iter < number_of_tests; iter++) {
+
+        struct picture pic_for_test;
+        init_picture_from_size(&pic_for_test, pic->width, pic->height);
+        overwrite_picture(&pic_for_test, pic);
+
         // Begins clock at current tick number
         struct timespec start;
         struct timespec end;
@@ -104,6 +118,12 @@
         }
         if (fastest_time == 0 || diff < fastest_time) {
           fastest_time = diff;
+        }
+
+        // Checking if produced picture is correct
+        if (!picture_compare(&pic_for_test, &correct_blur)) {
+          printf("\nAlgorithm Failed\n");
+          return 1;
         }
       }
       

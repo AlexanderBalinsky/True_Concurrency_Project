@@ -34,7 +34,7 @@ Compare.o: Compare.c Utils.h Picture.h
 	gcc -c -I sod_118 -lm -lpthread $<
 
 clean:
-	rm -rf picture_lib concurrent_picture_lib blur_opt_exprmt picture_compare *.o *.jpg
+	rm -rf picture_lib concurrent_picture_lib blur_opt_exprmt picture_compare *.o *.jpg BlurExprmt_output_images/*.jpg
 
 .PHONY: all clean
 
