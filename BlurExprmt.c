@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdint.h>
+#include <string.h>
+#include <libgen.h>
 
 #define NO_RGB_COMPONENTS 3
 #define BLUR_REGION_SIZE 9
@@ -18,7 +20,6 @@
 #define MEMORY_ERROR -2
 #define CORE_NUM_FOR_TESTING 7
 #define EXP_FUNC_NUM 1
-#define NUM_TEST_PER_PIC 5
 #define BILLION 1000000000 
 #define MILLION 1000000
 
@@ -29,7 +30,17 @@
   static char *cmd_strings[];
   static void (* const cmds[])(struct picture *, const char *);
 
-  void blur_experiment_wrapper(struct picture *pic, const char *unused) {
+  static void save_pic_to_res_folder(struct picture* pic, 
+                                     char *filename) {
+    // Chosen arbitrarily as a decent path limit
+    char path[75];
+    sprintf(path, "BlurExprmt_output_images/%s.jpg", filename);
+    save_picture_to_file(pic, path);
+  }
+
+
+  void blur_experiment_wrapper(struct picture *pic, int number_of_tests,
+                              const char* filename) {
 
     FILE *fp = fopen("BlurExprmt.txt", "w+");
 
@@ -40,7 +51,7 @@
     int blur_func_total_num = no_of_cmds - EXP_FUNC_NUM;
 
     // Make time array and init to 0 for all functions
-    int time_per_func[blur_func_total_num][NUM_TEST_PER_PIC];
+    int time_per_func[blur_func_total_num][number_of_tests];
 
     for (int fnum = 0; fnum < blur_func_total_num; fnum++) {
       double average_time = 0;
@@ -51,7 +62,7 @@
 
       fprintf(fp, "Time Spent per Attempt (milliseconds): ");
 
-      for (int iter = 0; iter < NUM_TEST_PER_PIC; iter++) {
+      for (int iter = 0; iter < number_of_tests; iter++) {
         // Begins clock at current tick number
         struct timespec start;
         struct timespec end;
@@ -65,6 +76,22 @@
         double diff = (BILLION * (end.tv_sec - start.tv_sec) + 
                       end.tv_nsec - start.tv_nsec)
                       / MILLION;
+
+        // FILE SAVING PROCESS -------------
+        char new_filename[150];
+        char base[150];
+        // Since basename can sometimes modify source
+        strncpy(base, filename, sizeof(base));
+        char* base_name = basename(base);
+        // Removes extension (so .jpg)
+        char* last_dot = strrchr(base_name, '.');
+        if (last_dot) {
+          *last_dot = '\0';
+        }
+        snprintf(new_filename, sizeof(new_filename), "%s_%s_%d", 
+                base_name, cmd_strings[fnum], iter);
+        save_pic_to_res_folder(pic, new_filename);
+        // FILE SAVING PROCESS FINISHED ---------
 
         // Adds time spent to array entry
         time_per_func[fnum][iter] = diff;
@@ -83,16 +110,13 @@
       // Padding for next function tests
       fprintf(fp, "\n\n\n");
 
-      fprintf(fp, "   Average Time: %f ms \n", average_time/NUM_TEST_PER_PIC);
+      fprintf(fp, "   Average Time: %f ms \n", average_time/number_of_tests);
       fprintf(fp, "   Slowest Time: %f ms \n", slowest_time);
       fprintf(fp, "   Fastest Time: %f ms \n", fastest_time);
 
       // Padding for next function tests
       fprintf(fp, "\n\n\n");
     }
-
-    clock_t end = clock();
-    double time_spent_experiment = (double)(end - begin) / CLOCKS_PER_SEC;
 
     // Padding for if file is appended by another set of tests
     fprintf(fp, "\n\n\n\n\n");
@@ -132,8 +156,6 @@
     sector_core_blur_testwrapper,
     row_blur_testwrapper,
     column_blur_testwrapper,
-    blur_experiment_wrapper
-    //optimised_row_column_blur_testwrapper
   };
 
   // list of all possible picture transformations
@@ -143,7 +165,6 @@
     "sector-core-blur",
     "row-blur",
     "column-blur",
-    "blur_experiment"
   };
 
   static int no_of_cmds = sizeof(cmds) / sizeof(cmds[0]);
@@ -151,50 +172,33 @@
   int main(int argc, char **argv){
 
     // capture and check command line arguments
-    const char * filename = argv[1];
-    const char * target_file = argv[2];
-    const char * process = argv[3];
-    const char * extra_arg = argv[4];
+    const char * number_of_tests_str = argv[1];
+    const char * input_file = argv[2];
     
-    if(filename == NULL || target_file == NULL || process == NULL){
+    if(number_of_tests_str == NULL || input_file == NULL) {
       printf("[!] insufficient command line arguments provided\n");
       exit(IO_ERROR);
     }        
   
-    printf("  filename  = %s\n", filename);
-    printf("  target    = %s\n", target_file);
-    printf("  process   = %s\n", process);
-    printf("  extra arg = %s\n", extra_arg);
+    printf("  number of tests per pic = %s\n", number_of_tests_str);
+    printf("  image file to use       = %s\n", input_file);
   
     printf("\n");
   
     // create original image object
     struct picture pic;
-    if(!init_picture_from_file(&pic, filename)){
+    if(!init_picture_from_file(&pic, input_file)){
       exit(IO_ERROR);   
-    }    
-  
-    // identify the picture transformation to run
-    int cmd_no = 0;
-    while(cmd_no < no_of_cmds && strcmp(process, cmd_strings[cmd_no])){
-      cmd_no++;
-    }
-  
-    // IO error check
-    if(cmd_no == no_of_cmds){
-      printf("[!] invalid process requested: %s is not defined\n    aborting...\n", process);  
-      clear_picture(&pic);
-      exit(IO_ERROR);   
-    }
-  
-    // dispatch to appropriate picture transformation function
-    cmds[cmd_no](&pic, extra_arg);
+    }   
 
-    // save resulting picture and report success
-    save_picture_to_file(&pic, target_file);
-    printf("-- picture processing complete --\n");
-    
-    clear_picture(&pic);
+    int number_of_tests = atoi(number_of_tests_str);
+    if (number_of_tests == 0) {
+      printf("You specified 0 tests to be run, recheck your input.");
+      return 0;
+    }
+
+    blur_experiment_wrapper(&pic, number_of_tests, input_file);
+
     return 0;
   }
 
